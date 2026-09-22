@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR Quest Player</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&family=Arial&family=Comic+Sans+MS&display=swap" rel="stylesheet">
+    
+    
+                    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+                    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
+                    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></script>
+                
+
+    <style>
+        :root { --border-color: #8B7B8B; --text-main: #5C5470; }
+        * { box-sizing: border-box; margin: 0; padding: 0; color: var(--text-main); font-family: inherit; }
+        body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; padding: 20px; transition: background 0.3s; background-position: center; background-size: cover; background-attachment: fixed; }
+        
+        .screen { display: none; width: 100%; max-width: 800px; text-align: center; background: rgba(255,255,255,0.95); border: 3px solid var(--border-color); border-radius: 20px; padding: 30px; box-shadow: 4px 4px 0px rgba(139,123,139,0.2); overflow-y: auto; max-height: 90vh;}
+        .screen.active { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+        
+        #game-board { width: 100%; height: 50vh; position: relative; border-radius: 12px; background-color: rgba(255,255,255,0.8); overflow: hidden; margin-bottom: 20px; border: 2px solid var(--border-color); background-size: cover; background-position: center; }
+        .quest-element { position: absolute; background-color: #FFE4E1; border: 2px solid var(--border-color); border-radius: 12px; padding: 10px; font-weight: 700; box-shadow: 2px 2px 0px rgba(139, 123, 139, 0.2); display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: transform 0.1s; }
+        .quest-element:active { transform: scale(0.95); }
+        .quest-element.done { filter: grayscale(100%); opacity: 0.6; pointer-events: none; }
+        
+        #scanner-ui { position: relative; width: 100%; height: 40vh; background: #000; border-radius: 16px; overflow: hidden; border: 3px solid var(--border-color); }
+        #camera-stream { width: 100%; height: 100%; object-fit: cover; opacity: 0.8; }
+        .scan-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.3); color: white; text-shadow: 1px 1px 2px black; font-weight: bold; }
+        .scan-target { border: 2px dashed #D0F0C0; width: 60%; height: 60%; position: absolute; top: 20%; left: 20%; border-radius: 12px; animation: pulse 2s infinite; }
+        
+        .task-interactive-area { width: 100%; max-width: 500px; text-align: left; background: #FFF8F0; padding: 20px; border-radius: 16px; border: 2px solid var(--border-color); margin-bottom: 15px; }
+        .interactive-label { display: block; margin: 10px 0; background: white; padding: 12px; border-radius: 10px; border: 2px solid #ccc; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .interactive-label:hover { border-color: #ff6b6b; }
+        .interactive-input { width: 100%; padding: 12px; border-radius: 10px; border: 2px solid #ccc; font-weight: bold; outline: none; }
+        .interactive-input:focus { border-color: #ff6b6b; }
+
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); border-color: #FFE4E1; } 100% { transform: scale(1); } }
+        
+        button { background-color: white; border: 3px solid var(--border-color); border-radius: 16px; padding: 12px 24px; font-weight: 900; font-size: 1.1rem; cursor: pointer; box-shadow: 3px 3px 0px var(--border-color); transition: all 0.1s ease; }
+        button:active { transform: translate(3px, 3px); box-shadow: 0px 0px 0px var(--border-color); }
+        #reward-box { font-size: 4rem; display: none; animation: bounce 1s; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px); } }
+    </style>
+</head>
+<body>
+    <div id="screen-start" class="screen active">
+        <h1 id="ui-title" style="font-size: 2.5rem; margin-bottom: 10px;"></h1>
+        <p id="ui-inst" style="font-size: 1.2rem;"></p>
+        <button id="btn-start" style="background-color: #D0F0C0; margin-top: 20px;"></button>
+    </div>
+
+    <div id="screen-map" class="screen">
+        <h2>🗺️ Select a Target</h2>
+        <div id="game-board"></div>
+    </div>
+
+    <div id="screen-scan" class="screen">
+        <h2>📷 AR Scanner</h2>
+        <p id="scan-hint"></p>
+        <div id="scanner-ui">
+            <video id="camera-stream" autoplay playsinline muted></video>
+            <div class="scan-target"></div>
+            <div class="scan-overlay">
+                <span id="scan-status" style="font-size: 1.5rem; color: white; text-align: center;">Awaiting scan...</span>
+            </div>
+        </div>
+        <button id="btn-do-scan" style="background-color: #FFE4E1; margin-top: 15px;"></button>
+    </div>
+
+    <div id="screen-task" class="screen">
+        <h2 id="task-counter">📝 Task 1</h2>
+        <h3 id="task-question" style="margin-bottom: 15px; font-size:1.5rem;"></h3>
+        <div id="task-interactive-area" class="task-interactive-area"></div>
+        <button id="btn-check" style="background-color: #D4F0F0; margin-top: 20px;"></button>
+        <div id="reward-box"></div>
+    </div>
+
+    <div id="screen-qr" class="screen">
+        <h2 style="margin-bottom: 15px;">🎉 Point Unlocked!</h2>
+        <img id="unlocked-qr" src="" style="display:none; max-width: 250px; border-radius: 16px; margin: 0 auto 20px auto; border: 4px solid var(--border-color);">
+        <p style="font-weight: bold; margin-bottom: 20px;">You have successfully completed this point.</p>
+        <button id="btn-qr-continue" style="background-color: #D0F0C0;">Continue to Map</button>
+    </div>
+
+    <div id="screen-end" class="screen">
+        <h1 id="end-title" style="font-size: 2.5rem; margin-bottom: 10px;"></h1>
+        <h2 id="end-slogan" style="color: #ff6b6b;"></h2>
+        <p id="end-time" style="font-size: 1.2rem; margin-top: 15px; font-weight: bold;"></p>
+        <button id="btn-restart" style="margin-top: 20px;"></button>
+    </div>
+
+    <script>
+        const questData = {"settings":{"lang":"en","global":{"title":"My AR Quest","inst":"Find the hidden objects and scan them!","endSlogan":"You are a true Hunter!","bg":"#f490e7","font":"Comic Sans MS","bgMap":"https://i.imgur.com/heqNpdH.png","bgStart":"https://i.imgur.com/Ix0uXYU.gif","bgEnd":"https://i.imgur.com/Ix0uXYU.gif"}},"elements":[{"id":"el_1790102468202","type":"text","x":106,"y":81.39999389648438,"content":"A pen","targetKey":"Pen","hiddenQR":"https://i.imgur.com/bzOOVmU.png","tasks":[{"type":"odd_one_out","data":{"odd_correct":"1","Word 1":"red","Word 2":"fish","Word 3":"fish","Word 4":"fish"},"reward":"🌟"},{"type":"matching","data":{},"reward":"🌟"},{"type":"matching","data":{},"reward":"🌟"}]},{"id":"el_1790102473993","type":"image","x":581,"y":34.399993896484375,"content":"https://i.imgur.com/bhil4ju.png","targetKey":"Pen","hiddenQR":"https://i.imgur.com/bzOOVmU.png","tasks":[{"type":"checkboxes","data":{},"reward":"🌟"},{"type":"text_input","data":{"Capital of...":".... is a capital of Russia.","Answer":"Moscow"},"reward":"🌟"}]}]};
+        const dict = {"app_title":"🧭 AR Quest Hunter","btn_save":"📥 Save JSON","btn_load":"📤 Load JSON","btn_export":"🚀 Export HTML","btn_iframe":"🔗 Genially iFrame","panel_elements":"🧸 Elements","el_text":"📝 Text Block","el_image":"🖼️ Image","el_ar":"📱 AR/QR Scan Point","panel_settings":"⚙️ Settings","sec_global":"🌍 Global Pages","lbl_game_title":"Game Title:","lbl_start_inst":"Start Instructions:","lbl_end_slogan":"End Motivation Slogan:","lbl_bg_color":"BG Color:","lbl_font":"Font:","sec_element":"🎨 Element Properties","sec_task":"🧩 Element Tasks","lbl_task_type":"Task Type:","lbl_reward":"Reward (Emoji/URL):","lbl_target_key":"🔍 Target Key (QR Text or English Object):","lbl_hidden_qr":"📸 Final Hidden QR/Reward Image (URL):","player_btn_start":"🚀 START GAME","player_scan_inst":"Find and scan:","player_btn_scan":"📷 SCAN OBJECT","player_analyzing":"Analyzing visual data...","player_success":"✅ Match Found!","player_btn_check":"✅ Check Answer","player_end_title":"🏁 Quest Complete!","player_time":"Time spent:","player_btn_restart":"🔄 Play Again"};
+        
+        let startTime, currentElement = null;
+        let currentTaskIndex = 0;
+        let mobilenetModel = null;
+
+        if (window.mobilenet) {
+            mobilenet.load().then(model => { mobilenetModel = model; console.log("MobileNet Loaded!"); });
+        }
+
+        const g = questData.settings.global;
+        document.body.style.backgroundColor = g.bg;
+        document.body.style.fontFamily = g.font;
+        
+        document.getElementById('ui-title').innerText = g.title;
+        document.getElementById('ui-inst').innerText = g.inst;
+        document.getElementById('end-slogan').innerText = g.endSlogan;
+        
+        document.getElementById('btn-start').innerText = dict.player_btn_start;
+        document.getElementById('btn-do-scan').innerText = dict.player_btn_scan;
+        document.getElementById('btn-check').innerText = dict.player_btn_check;
+        document.getElementById('end-title').innerText = dict.player_end_title;
+        document.getElementById('btn-restart').innerText = dict.player_btn_restart;
+
+        function applyBackground(screenId, bgUrl) {
+            document.body.style.backgroundImage = bgUrl ? `url(${bgUrl})` : '';
+        }
+
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            
+            if (id === 'screen-start') applyBackground(id, g.bgStart);
+            else if (id === 'screen-end') applyBackground(id, g.bgEnd);
+            else applyBackground(id, ''); 
+        }
+
+        document.getElementById('btn-start').addEventListener('click', () => {
+            startTime = Date.now();
+            renderMap();
+            showScreen('screen-map');
+        });
+
+        function renderMap() {
+            const board = document.getElementById('game-board');
+            board.innerHTML = '';
+            board.style.backgroundImage = g.bgMap ? `url(${g.bgMap})` : 'radial-gradient(#D4F0F0 2px, transparent 2px)';
+            questData.elements.forEach(el => {
+                const div = document.createElement('div');
+                div.className = 'quest-element';
+                if(el.completed) div.classList.add('done');
+                div.style.left = el.x + 'px'; div.style.top = el.y + 'px';
+                div.innerHTML = el.type==='image' && el.content.startsWith('http') ? `<img src="${el.content}" width="40">` : el.content;
+                div.onclick = () => { if(!el.completed) startScan(el); }
+                board.appendChild(div);
+            });
+        }
+
+        function startScan(el) {
+            currentElement = el;
+            showScreen('screen-scan');
+            document.getElementById('scan-hint').innerText = `${dict.player_scan_inst} ${el.targetKey || 'Secret Object'}`;
+            document.getElementById('scan-status').innerText = mobilenetModel ? 'Awaiting scan...' : 'Loading ML Model...';
+            
+            if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(stream => {
+                    document.getElementById('camera-stream').srcObject = stream;
+                }).catch(err => console.log("Camera access denied"));
+            }
+        }
+
+        document.getElementById('btn-do-scan').addEventListener('click', async () => {
+            const expected = (currentElement.targetKey || '').toLowerCase().trim();
+            const video = document.getElementById('camera-stream');
+            const statusEl = document.getElementById('scan-status');
+
+            statusEl.innerText = dict.player_analyzing;
+
+            let matchFound = false;
+
+            if (expected === '') {
+                matchFound = true; 
+            } else if (video.videoWidth > 0) {
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+                if (window.jsQR) {
+                    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+                    if (code && code.data.toLowerCase().includes(expected)) {
+                        matchFound = true;
+                    }
+                }
+
+                if (!matchFound && mobilenetModel) {
+                    try {
+                        const predictions = await mobilenetModel.classify(video);
+                        matchFound = predictions.some(p => p.className.toLowerCase().includes(expected));
+                    } catch (e) { console.error("ML Error:", e); }
+                }
+            }
+
+            if (matchFound) {
+                statusEl.innerText = dict.player_success;
+                setTimeout(() => {
+                    currentTaskIndex = 0;
+                    if(currentElement.tasks && currentElement.tasks.length > 0) {
+                        showTask();
+                    } else {
+                        checkElementCompletion();
+                    }
+                }, 1000);
+            } else {
+                statusEl.innerText = "❌ No match. Wrong object!";
+                setTimeout(() => { statusEl.innerText = "Awaiting scan..."; }, 2000);
+            }
+        });
+
+        function showTask() {
+            showScreen('screen-task');
+            
+            const stream = document.getElementById('camera-stream').srcObject;
+            if(stream) stream.getTracks().forEach(track => track.stop());
+
+            const task = currentElement.tasks[currentTaskIndex];
+            document.getElementById('task-counter').innerText = `📝 Task ${currentTaskIndex + 1} of ${currentElement.tasks.length}`;
+            
+            const qText = task.data['Question:'] || task.data['q-text'] || task.data['Capital of...'] || task.data['Question'] || 'Solve this task:';
+            document.getElementById('task-question').innerText = qText;
+            
+            const interactiveArea = document.getElementById('task-interactive-area');
+            interactiveArea.innerHTML = '';
+            
+            if (task.type === 'multiple_choice' || task.type === 'odd_one_out') {
+                for (let i = 1; i <= 4; i++) {
+                    const optKey = `Option ${i}`;
+                    const optVal = task.data[optKey] || (task.data[`Word ${i}`]);
+                    if (optVal) {
+                        interactiveArea.innerHTML += `<label class="interactive-label"><input type="radio" name="ans" value="${i}" style="transform: scale(1.2); margin-right: 10px;"> ${optVal}</label>`;
+                    }
+                }
+            } else if (task.type === 'checkboxes') {
+                for (let i = 1; i <= 4; i++) {
+                    if (task.data[`Option ${i}`]) {
+                        interactiveArea.innerHTML += `<label class="interactive-label"><input type="checkbox" name="ans_cb" value="${i}" style="transform: scale(1.2); margin-right: 10px;"> ${task.data[`Option ${i}`]}</label>`;
+                    }
+                }
+            } else {
+                interactiveArea.innerHTML = `<input type="text" id="ans_text" class="interactive-input" placeholder="Type your answer...">`;
+            }
+
+            document.getElementById('btn-check').style.display = 'block';
+            document.getElementById('reward-box').style.display = 'none';
+        }
+
+        document.getElementById('btn-check').addEventListener('click', () => {
+            const task = currentElement.tasks[currentTaskIndex];
+            let isCorrect = false;
+
+            if (task.type === 'multiple_choice' || task.type === 'odd_one_out') {
+                const correctKey = task.type === 'multiple_choice' ? 'mc_correct' : 'odd_correct';
+                const selected = document.querySelector('input[name="ans"]:checked');
+                if (selected && selected.value == task.data[correctKey]) isCorrect = true;
+            } else if (task.type === 'checkboxes') {
+                const selected = Array.from(document.querySelectorAll('input[name="ans_cb"]:checked')).map(el => el.value);
+                let correctArr = task.data['cb_correct'] || [];
+                if (!Array.isArray(correctArr)) correctArr = [correctArr];
+                if (selected.length === correctArr.length && selected.every(val => correctArr.includes(val))) isCorrect = true;
+            } else {
+                const ans = document.getElementById('ans_text').value.trim().toLowerCase();
+                const correct = (task.data['Answer'] || '').trim().toLowerCase();
+                if (ans === correct) isCorrect = true;
+            }
+
+            if (!isCorrect) {
+                alert('❌ Incorrect answer! Try again.');
+                return;
+            }
+
+            const rewardBox = document.getElementById('reward-box');
+            let reward = task.reward || '🌟';
+            
+            if(reward.startsWith('http')) rewardBox.innerHTML = `<img src="${reward}" style="max-width:150px; border-radius:16px;">`;
+            else rewardBox.innerText = reward;
+            
+            rewardBox.style.display = 'block';
+            document.getElementById('btn-check').style.display = 'none';
+            
+            setTimeout(() => {
+                currentTaskIndex++;
+                if (currentTaskIndex < currentElement.tasks.length) {
+                    showTask();
+                } else {
+                    checkElementCompletion();
+                }
+            }, 2000);
+        });
+
+        function checkElementCompletion() {
+            currentElement.completed = true;
+            
+            if (currentElement.hiddenQR) {
+                showScreen('screen-qr');
+                const qrImg = document.getElementById('unlocked-qr');
+                qrImg.src = currentElement.hiddenQR;
+                qrImg.style.display = 'block';
+            } else {
+                finishPoint();
+            }
+        }
+        
+        document.getElementById('btn-qr-continue').addEventListener('click', finishPoint);
+
+        function finishPoint() {
+            const allDone = questData.elements.every(e => e.completed);
+            if (allDone) {
+                showScreen('screen-end'); calcTime();
+            } else {
+                renderMap(); showScreen('screen-map');
+            }
+        }
+
+        function calcTime() {
+            const diff = Math.floor((Date.now() - startTime) / 1000);
+            const m = Math.floor(diff / 60); const s = diff % 60;
+            document.getElementById('end-time').innerText = `${dict.player_time} ${m}m ${s}s`;
+        }
+
+        document.getElementById('btn-restart').addEventListener('click', () => {
+            questData.elements.forEach(e => e.completed = false);
+            showScreen('screen-start');
+        });
+        
+        showScreen('screen-start');
+    </script>
+</body>
+</html>
