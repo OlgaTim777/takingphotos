@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR Quest Hunter Editor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --pastel-pink: #FFE4E1;
+            --pastel-blue: #D4F0F0;
+            --pastel-mint: #D0F0C0;
+            --pastel-cream: #FFFDD0;
+            --pastel-lilac: #E6E6FA;
+            --border-color: #8B7B8B;
+            --text-main: #5C5470;
+            --bg-main: #FFF8F0;
+            --border-radius: 20px;
+            --thick-border: 3px solid var(--border-color);
+            --soft-shadow: 4px 4px 0px rgba(139, 123, 139, 0.2);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Nunito', sans-serif; color: var(--text-main); }
+        body { background-color: var(--bg-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* --- HEADER --- */
+        header { background-color: var(--pastel-pink); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; border-bottom: var(--thick-border); z-index: 10; flex-shrink: 0; }
+        header h1 { font-weight: 900; font-size: 1.5rem; letter-spacing: 1px; text-shadow: 2px 2px 0px #FFF; }
+        .header-controls { display: flex; gap: 10px; align-items: center; }
+        .lang-select { padding: 5px 10px; border-radius: 8px; border: 2px solid var(--border-color); font-weight: bold; outline: none; }
+        .header-buttons button { background-color: white; border: var(--thick-border); border-radius: 12px; padding: 8px 16px; font-weight: 700; cursor: pointer; box-shadow: 2px 2px 0px var(--border-color); transition: all 0.1s ease; }
+        .header-buttons button:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px var(--border-color); }
+
+        /* --- LAYOUT --- */
+        .editor-container { display: grid; grid-template-columns: 260px 1fr 340px; flex-grow: 1; overflow: hidden; }
+        .panel { padding: 20px; overflow-y: auto; overflow-x: hidden; height: 100%; }
+
+        /* --- LEFT PANEL --- */
+        .left-panel { background-color: var(--pastel-lilac); border-right: var(--thick-border); }
+        .left-panel h2 { font-size: 1.2rem; margin-bottom: 15px; text-align: center; }
+        .draggables-list .draggable-item { background-color: white; border: var(--thick-border); border-radius: 16px; padding: 15px; margin-bottom: 15px; text-align: center; font-weight: 700; cursor: grab; box-shadow: var(--soft-shadow); }
+
+        /* --- CENTER CANVAS & TABS --- */
+        .center-canvas { background-color: var(--pastel-blue); position: relative; display: flex; flex-direction: column; padding: 20px; gap: 15px; overflow-y: auto; height: 100%; }
+        
+        .tabs-container { display: flex; gap: 10px; background: white; padding: 10px; border-radius: 16px; border: var(--thick-border); box-shadow: var(--soft-shadow); justify-content: center; z-index: 5; flex-shrink: 0; }
+        .tab-btn { padding: 8px 16px; border: 2px solid var(--border-color); border-radius: 10px; font-weight: bold; cursor: pointer; background: var(--bg-main); transition: 0.2s; }
+        .tab-btn.active { background: var(--pastel-pink); box-shadow: inset 0 0 0 2px rgba(0,0,0,0.1); }
+        
+        .canvas-area { width: 100%; height: 100%; background-color: white; border: var(--thick-border); border-radius: var(--border-radius); box-shadow: var(--soft-shadow); position: relative; overflow: hidden; background-image: radial-gradient(var(--pastel-blue) 2px, transparent 2px); background-size: 30px 30px; display: none; }
+        .canvas-area.active-view { display: flex; flex-direction: column; align-items: center; justify-content: center; background-position: center; background-size: cover; }
+        #main-canvas { display: block; }
+        #main-canvas.active-view { display: block; }
+
+        .preview-ui-box { background: rgba(255,255,255,0.9); padding: 30px; border-radius: 20px; border: var(--thick-border); text-align: center; max-width: 600px; box-shadow: var(--soft-shadow); }
+        .preview-iframe { width: 100%; height: 100%; border: none; }
+
+        /* --- RIGHT PANEL & HORIZONTAL TABS --- */
+        .right-panel { background-color: var(--pastel-mint); border-left: var(--thick-border); display: flex; flex-direction: column; padding: 15px 15px 40px 15px; overflow-y: auto; height: 100%; }
+        
+        .right-tabs { display: flex; gap: 5px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 15px; border-bottom: 2px solid var(--border-color); scrollbar-width: thin; flex-shrink: 0; }
+        .r-tab-btn { flex: 1; min-width: max-content; padding: 8px 12px; font-size: 0.9rem; border: 2px solid var(--border-color); border-radius: 8px; background: white; cursor: pointer; font-weight: bold; }
+        .r-tab-btn.active { background: var(--pastel-pink); }
+        
+        .panel-section { background: rgba(255, 255, 255, 0.6); padding: 15px; border-radius: 16px; border: 2px dashed var(--border-color); display: none; flex-shrink: 0; }
+        .panel-section.active { display: block; }
+        .panel-section h3 { font-size: 1rem; margin-bottom: 10px; border-bottom: 1px solid var(--border-color); padding-bottom: 5px; }
+        
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: 700; margin-bottom: 8px; font-size: 0.9rem; }
+        input[type="text"], input[type="color"], select, textarea { width: 100%; padding: 8px; border: 2px solid var(--border-color); border-radius: 10px; outline: none; font-family: inherit; font-weight: 700; }
+        input[type="color"] { padding: 2px; height: 35px; cursor: pointer; }
+        input[type="text"]:focus, select:focus, textarea:focus { border-color: #5C5470; background-color: #FFF; }
+        .dynamic-field { margin-top: 10px; display: flex; align-items: center; gap: 8px; }
+        .dynamic-field input[type="radio"], .dynamic-field input[type="checkbox"] { transform: scale(1.3); }
+        
+        .action-btn { background: var(--pastel-pink); border: 2px solid var(--border-color); padding: 8px; border-radius: 10px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 10px; }
+        .task-badge { background: white; border: 2px solid var(--border-color); border-radius: 8px; padding: 5px 10px; margin-top: 5px; display: flex; justify-content: space-between; font-size: 0.8rem; }
+
+        /* --- CANVAS ITEMS --- */
+        .canvas-item { position: absolute; background-color: white; border: 2px solid var(--border-color); border-radius: 12px; padding: 10px 15px; font-weight: 700; cursor: grab; box-shadow: 2px 2px 0px rgba(139, 123, 139, 0.2); user-select: none; display: flex; align-items: center; gap: 8px; min-width: 120px; justify-content: center; }
+        .canvas-item:active { cursor: grabbing; }
+        .canvas-item .delete-btn { position: absolute; top: -8px; right: -8px; background: #ff6b6b; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer; display: none; align-items: center; justify-content: center; font-weight: bold; }
+        .canvas-item:hover .delete-btn { display: flex; }
+        .canvas-item.selected-item { border-color: #ff6b6b; box-shadow: 0 0 0 4px rgba(255, 107, 107, 0.3); z-index: 10; }
+        .canvas-item[data-type="text"] { background-color: var(--pastel-pink); }
+        .canvas-item[data-type="image"] { background-color: var(--pastel-mint); }
+        .canvas-item[data-type="ar-trigger"] { background-color: var(--pastel-lilac); border: 2px dashed #8B7B8B; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1 data-i18n="app_title">🧭 AR Quest Hunter</h1>
+        <div class="header-controls">
+            <select id="lang-switch" class="lang-select">
+                <option value="en">🇬🇧 EN</option>
+                <option value="ru">🇷🇺 RU</option>
+                <option value="de">🇩🇪 DE</option>
+                <option value="fr">🇫🇷 FR</option>
+                <option value="zh">🇨🇳 ZH</option>
+                <option value="it">🇮🇹 IT</option>
+            </select>
+            <div class="header-buttons">
+                <button id="btn-save-json" data-i18n="btn_save">📥 Save JSON</button>
+                <button id="btn-load-json" data-i18n="btn_load">📤 Load JSON</button>
+                <button id="btn-export-html" data-i18n="btn_export">🚀 Export HTML</button>
+                <button id="btn-get-iframe" data-i18n="btn_iframe">🔗 Genially iFrame</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="editor-container">
+        <!-- Left Panel -->
+        <aside class="left-panel panel">
+            <h2 data-i18n="panel_elements">🧸 Elements</h2>
+            <div class="draggables-list">
+                <div class="draggable-item" draggable="true" data-type="text" data-i18n="el_text">📝 Text Block</div>
+                <div class="draggable-item" draggable="true" data-type="image" data-i18n="el_image">🖼️ Image Placeholder</div>
+                <div class="draggable-item" draggable="true" data-type="ar-trigger" data-i18n="el_ar">📱 AR/QR Scan Point</div>
+            </div>
+        </aside>
+
+        <!-- Center Canvas & Tabs -->
+        <main class="center-canvas">
+            <div class="tabs-container">
+                <button class="tab-btn active" onclick="questEditor.switchTab('map', this)">🗺️ Map Editor</button>
+                <button class="tab-btn" onclick="questEditor.switchTab('start', this)">🎬 Start Page</button>
+                <button class="tab-btn" onclick="questEditor.switchTab('end', this)">🏁 End Page</button>
+                <button class="tab-btn" onclick="questEditor.switchTab('preview', this)">▶️ Game Preview</button>
+            </div>
+
+            <div class="canvas-area active-view" id="main-canvas"></div>
+            
+            <div class="canvas-area" id="view-start">
+                <div class="preview-ui-box">
+                    <h1 id="prev-start-title" style="font-size: 2.5rem; margin-bottom: 10px;">Title</h1>
+                    <p id="prev-start-inst" style="font-size: 1.2rem;"></p>
+                    <button onclick="questEditor.switchTab('preview', document.querySelectorAll('.tab-btn')[3])" style="background-color: #D0F0C0; border: 3px solid var(--border-color); padding: 10px 20px; border-radius: 12px; font-weight: bold; margin-top: 20px; font-size: 1.2rem; cursor: pointer;">START</button>
+                </div>
+            </div>
+
+            <div class="canvas-area" id="view-end">
+                <div class="preview-ui-box">
+                    <h1 style="font-size: 2.5rem; margin-bottom: 10px;">🏁 Quest Complete!</h1>
+                    <h2 id="prev-end-slogan" style="color: #ff6b6b;"></h2>
+                    <p style="font-size: 1.2rem; margin-top: 15px; font-weight: bold;">Time spent: 5m 12s</p>
+                    <button onclick="questEditor.switchTab('start', document.querySelectorAll('.tab-btn')[1])" style="background-color: white; border: 3px solid var(--border-color); padding: 10px 20px; border-radius: 12px; font-weight: bold; margin-top: 20px; font-size: 1rem; cursor: pointer;">🔄 Play Again</button>
+                </div>
+            </div>
+
+            <div class="canvas-area" id="view-preview" style="padding:0;">
+                <iframe id="preview-iframe" class="preview-iframe" allow="camera; microphone"></iframe>
+            </div>
+        </main>
+
+        <!-- Right Panel (with horizontal tabs) -->
+        <aside class="right-panel">
+            <h2 data-i18n="panel_settings" style="margin-bottom: 10px;">⚙️ Settings</h2>
+            
+            <div class="right-tabs">
+                <button class="r-tab-btn active" data-tab="global" onclick="questEditor.switchRightTab('global')">🌍 Global Pages</button>
+                <button class="r-tab-btn" data-tab="element" onclick="questEditor.switchRightTab('element')">🎨 Element Props</button>
+                <button class="r-tab-btn" data-tab="task" onclick="questEditor.switchRightTab('task')">🧩 Tasks Config</button>
+            </div>
+            
+            <div class="panel-section active" id="global-settings-container">
+                <h3 data-i18n="sec_global">🌍 Global Pages</h3>
+                <div class="form-group">
+                    <label data-i18n="lbl_game_title">Game Title:</label>
+                    <input type="text" id="global-title" value="My AR Quest">
+                </div>
+                <div class="form-group">
+                    <label data-i18n="lbl_start_inst">Start Instructions:</label>
+                    <textarea id="global-inst" rows="2">Find the hidden objects and scan them!</textarea>
+                </div>
+                <div class="form-group">
+                    <label data-i18n="lbl_end_slogan">End Motivation Slogan:</label>
+                    <input type="text" id="global-end" value="You are a true Hunter!">
+                </div>
+                <div class="form-group">
+                    <label>Map Background Image (URL):</label>
+                    <input type="text" id="global-bgMap" placeholder="https://...">
+                </div>
+                <div class="form-group">
+                    <label>Start Page Background (URL):</label>
+                    <input type="text" id="global-bgStart" placeholder="https://...">
+                </div>
+                <div class="form-group">
+                    <label>End Page Background (URL):</label>
+                    <input type="text" id="global-bgEnd" placeholder="https://...">
+                </div>
+
+                <div class="form-group" style="display:flex; gap:10px;">
+                    <div style="flex:1;">
+                        <label data-i18n="lbl_bg_color">BG Color:</label>
+                        <input type="color" id="global-bg" value="#FFF8F0">
+                    </div>
+                    <div style="flex:1;">
+                        <label data-i18n="lbl_font">Font:</label>
+                        <select id="global-font">
+                            <option value="Nunito">Nunito</option>
+                            <option value="Arial">Arial</option>
+                            <option value="Comic Sans MS">Comic Sans</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section" id="element-settings-container" style="border-color: #ff6b6b; background: #ffebeb;">
+                <h3 data-i18n="sec_element">🎨 Element Properties</h3>
+                <div id="element-properties">
+                    <p style="font-size:0.85rem; color:#8B7B8B;">Select an element on the map to edit.</p>
+                </div>
+            </div>
+            
+            <div class="panel-section" id="task-section">
+                <h3 data-i18n="sec_task">🧩 Element Tasks (Max 10)</h3>
+                
+                <div class="form-group">
+                    <label for="task-type" data-i18n="lbl_task_type">Task Type:</label>
+                    <select id="task-type">
+                        <option value="multiple_choice">1. Multiple Choice</option>
+                        <option value="checkboxes">2. Checkboxes</option>
+                        <option value="text_input">3. Text Input</option>
+                        <option value="matching">4. Matching</option>
+                        <option value="odd_one_out">5. Odd One Out</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label data-i18n="lbl_reward">Reward (Emoji/URL) on success:</label>
+                    <input type="text" id="task-reward" value="🌟">
+                </div>
+
+                <div id="dynamic-settings-container" style="background: rgba(255,255,255,0.8); padding: 10px; border-radius: 10px; margin-bottom: 10px;"></div>
+                
+                <button class="action-btn" onclick="questEditor.addCurrentTask()">➕ Add Task to Element</button>
+                
+                <div style="margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 10px;">
+                    <label>Bulk Upload Tasks (Q | A1, A2...):</label>
+                    <textarea id="bulk-upload-text" rows="3" placeholder="Question | Answer"></textarea>
+                    <button class="action-btn" style="background: #D4F0F0;" onclick="questEditor.bulkUploadTasks()">⬆️ Load Bulk Tasks</button>
+                </div>
+
+                <div id="element-task-list" style="margin-top: 15px;"></div>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        const translations = {
+            en: {
+                app_title: "🧭 AR Quest Hunter", btn_save: "📥 Save JSON", btn_load: "📤 Load JSON", btn_export: "🚀 Export HTML", btn_iframe: "🔗 Genially iFrame",
+                panel_elements: "🧸 Elements", el_text: "📝 Text Block", el_image: "🖼️ Image", el_ar: "📱 AR/QR Scan Point",
+                panel_settings: "⚙️ Settings", sec_global: "🌍 Global Pages", lbl_game_title: "Game Title:", lbl_start_inst: "Start Instructions:", lbl_end_slogan: "End Motivation Slogan:", lbl_bg_color: "BG Color:", lbl_font: "Font:",
+                sec_element: "🎨 Element Properties", sec_task: "🧩 Element Tasks", lbl_task_type: "Task Type:", lbl_reward: "Reward (Emoji/URL):",
+                lbl_target_key: "🔍 Target Key (QR Text or English Object):", lbl_hidden_qr: "📸 Final Hidden QR/Reward Image (URL):",
+                player_btn_start: "🚀 START GAME", player_scan_inst: "Find and scan:", player_btn_scan: "📷 SCAN OBJECT", player_analyzing: "Analyzing visual data...", player_success: "✅ Match Found!", player_btn_check: "✅ Check Answer", player_end_title: "🏁 Quest Complete!", player_time: "Time spent:", player_btn_restart: "🔄 Play Again"
+            },
+            ru: {
+                app_title: "🧭 AR Квест Хантер", btn_save: "📥 Сохранить JSON", btn_load: "📤 Загрузить JSON", btn_export: "🚀 Экспорт HTML", btn_iframe: "🔗 iFrame код",
+                panel_elements: "🧸 Элементы", el_text: "📝 Текст", el_image: "🖼️ Картинка", el_ar: "📱 AR/QR Метка",
+                panel_settings: "⚙️ Настройки", sec_global: "🌍 Страницы", lbl_game_title: "Название игры:", lbl_start_inst: "Инструкция:", lbl_end_slogan: "Финальный слоган:", lbl_bg_color: "Цвет фона:", lbl_font: "Шрифт:",
+                sec_element: "🎨 Свойства элемента", sec_task: "🧩 Задания объекта", lbl_task_type: "Тип задания:", lbl_reward: "Награда (Эмодзи/URL):",
+                lbl_target_key: "🔍 Ключ (Текст QR или объект на англ.):", lbl_hidden_qr: "📸 Финальный QR-код/Приз (URL):",
+                player_btn_start: "🚀 НАЧАТЬ", player_scan_inst: "Найдите и отсканируйте:", player_btn_scan: "📷 СКАНИРОВАТЬ", player_analyzing: "Анализ изображения...", player_success: "✅ Верно!", player_btn_check: "✅ Проверить", player_end_title: "🏁 Квест пройден!", player_time: "Время:", player_btn_restart: "🔄 Играть снова"
+            }
+        };
+        ['de','fr','zh','it'].forEach(l => translations[l] = translations.en);
+
+        class EditorApp {
+            constructor() {
+                this.langSelect = document.getElementById('lang-switch');
+                this.taskTypeSelect = document.getElementById('task-type');
+                this.dynamicContainer = document.getElementById('dynamic-settings-container');
+                this.canvas = document.getElementById('main-canvas');
+                
+                this.selectedElementId = null;
+                this.elementSettingsContainer = document.getElementById('element-settings-container');
+                this.elementPropertiesContainer = document.getElementById('element-properties');
+                
+                this.activeTaskForm = {};
+
+                this.questData = {
+                    settings: {
+                        lang: 'en',
+                        global: {
+                            title: 'My AR Quest', inst: 'Find the hidden objects and scan them!',
+                            endSlogan: 'You are a true Hunter!', bg: '#FFF8F0', font: 'Nunito',
+                            bgMap: '', bgStart: '', bgEnd: ''
+                        }
+                    },
+                    elements: [] 
+                };
+                
+                this.init();
+            }
+
+            init() {
+                this.langSelect.addEventListener('change', (e) => {
+                    this.questData.settings.lang = e.target.value;
+                    this.applyTranslations();
+                });
+
+                this.taskTypeSelect.addEventListener('change', (e) => {
+                    this.renderTaskSettingsForm();
+                });
+                
+                ['title', 'inst', 'end', 'bg', 'font', 'bgMap', 'bgStart', 'bgEnd'].forEach(key => {
+                    const el = document.getElementById(`global-${key}`);
+                    el.addEventListener('input', (e) => {
+                        const mapKey = key === 'end' ? 'endSlogan' : key;
+                        this.questData.settings.global[mapKey] = e.target.value;
+                        this.updatePreviews();
+                    });
+                });
+
+                this.canvas.addEventListener('mousedown', (e) => {
+                    if (e.target === this.canvas) this.selectElement(null);
+                });
+                
+                document.getElementById('btn-save-json').addEventListener('click', () => this.saveJSON());
+                document.getElementById('btn-load-json').addEventListener('click', () => this.loadJSON());
+                document.getElementById('btn-export-html').addEventListener('click', () => this.exportToHTML());
+                document.getElementById('btn-get-iframe').addEventListener('click', () => this.generateIframe());
+
+                this.renderTaskSettingsForm();
+                this.initTaskDataListener();
+                this.initDragAndDrop();
+                this.applyTranslations();
+                this.updatePreviews();
+            }
+
+            switchTab(viewName, btnEl) {
+                document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+                if(btnEl) btnEl.classList.add('active');
+
+                document.querySelectorAll('.canvas-area').forEach(view => {
+                    view.classList.remove('active-view');
+                    view.style.display = 'none';
+                });
+                
+                const targetView = viewName === 'map' ? document.getElementById('main-canvas') : document.getElementById(`view-${viewName}`);
+                targetView.style.display = viewName === 'map' ? 'block' : 'flex';
+                targetView.classList.add('active-view');
+
+                this.updatePreviews();
+
+                if(viewName === 'preview') {
+                    const html = this.generatePlayerHTML();
+                    const blob = new Blob([html], {type: 'text/html'});
+                    document.getElementById('preview-iframe').src = URL.createObjectURL(blob);
+                }
+            }
+            
+            switchRightTab(tabName) {
+                document.querySelectorAll('.r-tab-btn').forEach(btn => btn.classList.remove('active'));
+                document.querySelector(`.r-tab-btn[data-tab="${tabName}"]`).classList.add('active');
+                
+                document.getElementById('global-settings-container').classList.remove('active');
+                document.getElementById('element-settings-container').classList.remove('active');
+                document.getElementById('task-section').classList.remove('active');
+                
+                if (tabName === 'global') document.getElementById('global-settings-container').classList.add('active');
+                if (tabName === 'element') document.getElementById('element-settings-container').classList.add('active');
+                if (tabName === 'task') document.getElementById('task-section').classList.add('active');
+            }
+
+            updatePreviews() {
+                const g = this.questData.settings.global;
+                this.canvas.style.backgroundImage = g.bgMap ? `url(${g.bgMap})` : 'radial-gradient(var(--pastel-blue) 2px, transparent 2px)';
+                
+                const vStart = document.getElementById('view-start');
+                vStart.style.backgroundColor = g.bg;
+                vStart.style.backgroundImage = g.bgStart ? `url(${g.bgStart})` : '';
+                vStart.style.fontFamily = g.font;
+                document.getElementById('prev-start-title').innerText = g.title;
+                document.getElementById('prev-start-inst').innerText = g.inst;
+
+                const vEnd = document.getElementById('view-end');
+                vEnd.style.backgroundColor = g.bg;
+                vEnd.style.backgroundImage = g.bgEnd ? `url(${g.bgEnd})` : '';
+                vEnd.style.fontFamily = g.font;
+                document.getElementById('prev-end-slogan').innerText = g.endSlogan;
+            }
+
+            applyTranslations() {
+                const lang = this.questData.settings.lang;
+                const dict = translations[lang] || translations.en;
+                document.querySelectorAll('[data-i18n]').forEach(el => {
+                    const key = el.getAttribute('data-i18n');
+                    if (dict[key]) el.innerText = dict[key];
+                });
+                this.renderElementSettings(); 
+            }
+
+            renderTaskSettingsForm() {
+                const type = this.taskTypeSelect.value;
+                let html = '';
+                switch (type) {
+                    case 'multiple_choice':
+                        html = `<div class="form-group"><label>Question:</label><input type="text" id="q-text" placeholder="e.g. Find the cat..."><label style="margin-top: 15px;">Options:</label>${[1,2,3,4].map(i=>`<div class="dynamic-field"><input type="radio" name="mc_correct" value="${i}" ${i===1?'checked':''}><input type="text" placeholder="Option ${i}"></div>`).join('')}</div>`; break;
+                    case 'checkboxes':
+                        html = `<div class="form-group"><label>Question:</label><input type="text" placeholder="Select all..."><label style="margin-top: 15px;">Options:</label>${[1,2,3,4].map(i=>`<div class="dynamic-field"><input type="checkbox" name="cb_correct" value="${i}"><input type="text" placeholder="Option ${i}"></div>`).join('')}</div>`; break;
+                    case 'matching':
+                        html = `<div class="form-group"><label>Pairs (Left = Right):</label>${[1,2,3].map(i=>`<div class="dynamic-field"><input type="text" placeholder="Item ${i}"><span>=</span><input type="text" placeholder="Match ${i}"></div>`).join('')}</div>`; break;
+                    case 'text_input':
+                        html = `<div class="form-group"><label>Question:</label><input type="text" placeholder="Capital of..."><label style="margin-top:15px;">Correct Answer:</label><input type="text" placeholder="Answer"></div>`; break;
+                    case 'odd_one_out':
+                        html = `<div class="form-group"><label>Words (Select odd one):</label>${[1,2,3,4].map(i=>`<div class="dynamic-field"><input type="radio" name="odd_correct" value="${i}" ${i===1?'checked':''}><input type="text" placeholder="Word ${i}"></div>`).join('')}</div>`; break;
+                }
+                this.dynamicContainer.innerHTML = html;
+                this.activeTaskForm = {}; 
+            }
+
+            initTaskDataListener() {
+                this.dynamicContainer.addEventListener('input', (e) => {
+                    const inputs = this.dynamicContainer.querySelectorAll('input');
+                    this.activeTaskForm = {};
+                    inputs.forEach(input => {
+                        const key = input.name || input.id || input.placeholder || 'field';
+                        if (input.type === 'checkbox' || input.type === 'radio') {
+                            if (input.checked) {
+                                if (input.type === 'checkbox') {
+                                    if (!this.activeTaskForm[input.name]) this.activeTaskForm[input.name] = [];
+                                    this.activeTaskForm[input.name].push(input.value);
+                                } else {
+                                    this.activeTaskForm[input.name] = input.value;
+                                }
+                            }
+                        } else {
+                            if (input.value.trim() !== '') {
+                                if (this.activeTaskForm[key]) {
+                                    if (!Array.isArray(this.activeTaskForm[key])) this.activeTaskForm[key] = [this.activeTaskForm[key]];
+                                    this.activeTaskForm[key].push(input.value);
+                                } else this.activeTaskForm[key] = input.value;
+                            }
+                        }
+                    });
+                });
+            }
+
+            addCurrentTask() {
+                if (!this.selectedElementId) return alert("Please select an element on the map first!");
+                const el = this.questData.elements.find(e => e.id === this.selectedElementId);
+                if (el.tasks.length >= 10) return alert("Maximum 10 tasks per element!");
+                
+                el.tasks.push({
+                    type: this.taskTypeSelect.value,
+                    data: JSON.parse(JSON.stringify(this.activeTaskForm)), 
+                    reward: document.getElementById('task-reward').value
+                });
+                
+                this.renderElementTasks();
+                this.dynamicContainer.querySelectorAll('input[type="text"]').forEach(i => i.value = '');
+                this.activeTaskForm = {};
+            }
+
+            bulkUploadTasks() {
+                if (!this.selectedElementId) return alert("Please select an element on the map first!");
+                const el = this.questData.elements.find(e => e.id === this.selectedElementId);
+                const text = document.getElementById('bulk-upload-text').value;
+                const lines = text.split('\n').filter(l => l.trim());
+                const type = this.taskTypeSelect.value;
+                const reward = document.getElementById('task-reward').value;
+
+                lines.forEach(line => {
+                    if(el.tasks.length >= 10) return;
+                    const parts = line.split('|').map(s=>s.trim());
+                    let tData = {};
+                    
+                    if (type === 'text_input') {
+                        tData['Capital of...'] = parts[0] || 'Question';
+                        tData['Answer'] = parts[1] || '';
+                    } else if (type === 'multiple_choice') {
+                        tData['q-text'] = parts[0] || 'Question';
+                        const options = parts[1] ? parts[1].split(',').map(s=>s.trim()) : [];
+                        tData['Option 1'] = options[0] || '';
+                        tData['Option 2'] = options[1] || '';
+                        tData['Option 3'] = options[2] || '';
+                        tData['Option 4'] = options[3] || '';
+                        tData['mc_correct'] = "1";
+                    } else {
+                        tData['Question'] = parts[0] || '';
+                        tData['Answer'] = parts[1] || '';
+                    }
+                    el.tasks.push({ type: type, data: tData, reward: reward });
+                });
+                
+                document.getElementById('bulk-upload-text').value = '';
+                this.renderElementTasks();
+            }
+
+            renderElementTasks() {
+                const list = document.getElementById('element-task-list');
+                const el = this.questData.elements.find(e => e.id === this.selectedElementId);
+                if (!el || !el.tasks || el.tasks.length === 0) {
+                    list.innerHTML = '<p style="font-size:0.8rem; color:var(--text-main);">No tasks yet. Add up to 10.</p>';
+                    return;
+                }
+                
+                list.innerHTML = el.tasks.map((t, idx) => `
+                    <div class="task-badge">
+                        <span><b>${idx+1}.</b> ${t.type.replace('_',' ')}</span>
+                        <button style="background:none; border:none; color:red; cursor:pointer;" onclick="questEditor.deleteTask(${idx})">✖</button>
+                    </div>
+                `).join('');
+            }
+
+            deleteTask(idx) {
+                const el = this.questData.elements.find(e => e.id === this.selectedElementId);
+                if (el) { el.tasks.splice(idx, 1); this.renderElementTasks(); }
+            }
+
+            initDragAndDrop() {
+                const draggables = document.querySelectorAll('.draggable-item');
+                draggables.forEach(item => {
+                    item.addEventListener('dragstart', (e) => { e.dataTransfer.setData('source', 'sidebar'); e.dataTransfer.setData('type', item.dataset.type); });
+                });
+                this.canvas.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+                this.canvas.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    const source = e.dataTransfer.getData('source');
+                    const rect = this.canvas.getBoundingClientRect();
+                    if (source === 'sidebar') {
+                        const type = e.dataTransfer.getData('type');
+                        const newElement = { id: 'el_' + Date.now(), type: type, x: e.clientX - rect.left - 60, y: e.clientY - rect.top - 20, content: type === 'image' ? '🖼️ Image' : (type === 'text' ? '📝 Text' : '📱 Scan Point'), targetKey: '', hiddenQR: '', tasks: [] };
+                        this.questData.elements.push(newElement);
+                        this.renderCanvas();
+                        this.selectElement(newElement.id);
+                    } else if (source === 'canvas') {
+                        const id = e.dataTransfer.getData('id');
+                        const el = this.questData.elements.find(e => e.id === id);
+                        if (el) { el.x = e.clientX - rect.left - parseFloat(e.dataTransfer.getData('offsetX')); el.y = e.clientY - rect.top - parseFloat(e.dataTransfer.getData('offsetY')); this.renderCanvas(); }
+                    }
+                });
+            }
+
+            renderCanvas() {
+                this.canvas.innerHTML = '';
+                this.questData.elements.forEach(elData => {
+                    const el = document.createElement('div');
+                    el.className = 'canvas-item';
+                    if (this.selectedElementId === elData.id) el.classList.add('selected-item');
+                    el.dataset.type = elData.type;
+                    el.style.left = `${elData.x}px`; el.style.top = `${elData.y}px`;
+                    el.innerHTML = `${elData.type==='image' && elData.content.startsWith('http') ? `<img src="${elData.content}" width="50">` : elData.content}
+                                    <div style="position:absolute; bottom:-15px; font-size:10px; background:#fff; border-radius:5px; padding:2px; box-shadow:0 0 2px rgba(0,0,0,0.2);">Tasks: ${elData.tasks ? elData.tasks.length : 0}</div>
+                                    <button class="delete-btn" onclick="questEditor.deleteElement('${elData.id}'); event.stopPropagation();">×</button>`;
+                    el.setAttribute('draggable', 'true');
+                    el.addEventListener('mousedown', (e) => { this.selectElement(elData.id); e.stopPropagation(); });
+                    el.addEventListener('dragstart', (e) => { this.selectElement(elData.id); e.dataTransfer.setData('source', 'canvas'); e.dataTransfer.setData('id', elData.id); const rect = el.getBoundingClientRect(); e.dataTransfer.setData('offsetX', e.clientX - rect.left); e.dataTransfer.setData('offsetY', e.clientY - rect.top); });
+                    this.canvas.appendChild(el);
+                });
+            }
+
+            selectElement(id) {
+                this.selectedElementId = id;
+                this.renderCanvas();
+                this.renderElementSettings();
+                
+                if(id) {
+                    this.switchRightTab('element');
+                    this.renderElementTasks();
+                } else {
+                    document.getElementById('element-properties').innerHTML = '<p style="font-size:0.85rem; color:#8B7B8B;">Select an element on the map to edit.</p>';
+                    this.switchRightTab('global');
+                }
+            }
+
+            renderElementSettings() {
+                if (!this.selectedElementId) return;
+                const el = this.questData.elements.find(e => e.id === this.selectedElementId);
+                if (!el) return;
+                
+                const dict = translations[this.questData.settings.lang] || translations.en;
+                
+                let html = `<div class="form-group"><label>${el.type === 'image' ? 'Image URL:' : 'Content:'}</label><input type="text" value="${el.content}" oninput="questEditor.updateSelectedElement('content', this.value)"></div>`;
+                
+                html += `
+                    <div class="form-group" style="margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 10px;">
+                        <label>${dict.lbl_target_key}</label>
+                        <input type="text" value="${el.targetKey || ''}" placeholder="e.g. Red Apple, Book..." oninput="questEditor.updateSelectedElement('targetKey', this.value)">
+                    </div>
+                    <div class="form-group">
+                        <label>${dict.lbl_hidden_qr}</label>
+                        <input type="text" value="${el.hiddenQR || ''}" placeholder="https://link-to-qr.png" oninput="questEditor.updateSelectedElement('hiddenQR', this.value)">
+                        <small style="font-size:0.75rem;">Shows ONLY after all element tasks are done.</small>
+                    </div>
+                `;
+                this.elementPropertiesContainer.innerHTML = html;
+            }
+
+            updateSelectedElement(key, value) {
+                const el = this.questData.elements.find(e => e.id === this.selectedElementId);
+                if (el) { el[key] = value; this.renderCanvas(); }
+            }
+
+            deleteElement(id) {
+                this.questData.elements = this.questData.elements.filter(el => el.id !== id);
+                if (this.selectedElementId === id) this.selectElement(null);
+                this.renderCanvas();
+            }
+
+            saveJSON() {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.questData, null, 2));
+                const anchor = document.createElement('a'); anchor.setAttribute("href", dataStr); anchor.setAttribute("download", "quest_level.json");
+                document.body.appendChild(anchor); anchor.click(); anchor.remove();
+            }
+
+            loadJSON() {
+                const input = document.createElement('input'); input.type = 'file'; input.accept = 'application/json';
+                input.onchange = e => {
+                    const file = e.target.files[0]; if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = event => {
+                        try {
+                            this.questData = JSON.parse(event.target.result);
+                            this.selectedElementId = null; 
+                            
+                            const g = this.questData.settings.global;
+                            this.langSelect.value = this.questData.settings.lang || 'en';
+                            document.getElementById('global-title').value = g.title || '';
+                            document.getElementById('global-inst').value = g.inst || '';
+                            document.getElementById('global-end').value = g.endSlogan || '';
+                            document.getElementById('global-bg').value = g.bg || '#FFF8F0';
+                            document.getElementById('global-font').value = g.font || 'Nunito';
+                            document.getElementById('global-bgMap').value = g.bgMap || '';
+                            document.getElementById('global-bgStart').value = g.bgStart || '';
+                            document.getElementById('global-bgEnd').value = g.bgEnd || '';
+                            
+                            this.renderTaskSettingsForm(); this.renderCanvas(); this.applyTranslations(); this.updatePreviews();
+                            this.switchRightTab('global');
+                            alert('Quest loaded successfully! 🎉');
+                        } catch (err) { alert('Error parsing JSON.'); }
+                    };
+                    reader.readAsText(file);
+                };
+                input.click();
+            }
+
+            // БЕЗОПАСНАЯ ГЕНЕРАЦИЯ HTML И ИНТЕГРАЦИЯ ML-БИБЛИОТЕК
+            generatePlayerHTML() {
+                const questJSON = JSON.stringify(this.questData);
+                const lang = this.questData.settings.lang || 'en';
+                const dictJSON = JSON.stringify(translations[lang]);
+                
+                // Избегаем прямого написания закрывающих тегов script
+                const scrTag = "scr" + "ipt";
+                
+                const scriptTags = `
+                    <${scrTag} src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></${scrTag}>
+                    <${scrTag} src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></${scrTag}>
+                    <${scrTag} src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0/dist/mobilenet.min.js"></${scrTag}>
+                `;
+                
+                return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR Quest Player</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&family=Arial&family=Comic+Sans+MS&display=swap" rel="stylesheet">
+    
+    ` + scriptTags + `
+
+    <style>
+        :root { --border-color: #8B7B8B; --text-main: #5C5470; }
+        * { box-sizing: border-box; margin: 0; padding: 0; color: var(--text-main); font-family: inherit; }
+        body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; padding: 20px; transition: background 0.3s; background-position: center; background-size: cover; background-attachment: fixed; }
+        
+        .screen { display: none; width: 100%; max-width: 800px; text-align: center; background: rgba(255,255,255,0.95); border: 3px solid var(--border-color); border-radius: 20px; padding: 30px; box-shadow: 4px 4px 0px rgba(139,123,139,0.2); overflow-y: auto; max-height: 90vh;}
+        .screen.active { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+        
+        #game-board { width: 100%; height: 50vh; position: relative; border-radius: 12px; background-color: rgba(255,255,255,0.8); overflow: hidden; margin-bottom: 20px; border: 2px solid var(--border-color); background-size: cover; background-position: center; }
+        .quest-element { position: absolute; background-color: #FFE4E1; border: 2px solid var(--border-color); border-radius: 12px; padding: 10px; font-weight: 700; box-shadow: 2px 2px 0px rgba(139, 123, 139, 0.2); display: flex; flex-direction: column; align-items: center; cursor: pointer; transition: transform 0.1s; }
+        .quest-element:active { transform: scale(0.95); }
+        .quest-element.done { filter: grayscale(100%); opacity: 0.6; pointer-events: none; }
+        
+        #scanner-ui { position: relative; width: 100%; height: 40vh; background: #000; border-radius: 16px; overflow: hidden; border: 3px solid var(--border-color); }
+        #camera-stream { width: 100%; height: 100%; object-fit: cover; opacity: 0.8; }
+        .scan-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.3); color: white; text-shadow: 1px 1px 2px black; font-weight: bold; }
+        .scan-target { border: 2px dashed #D0F0C0; width: 60%; height: 60%; position: absolute; top: 20%; left: 20%; border-radius: 12px; animation: pulse 2s infinite; }
+        
+        .task-interactive-area { width: 100%; max-width: 500px; text-align: left; background: #FFF8F0; padding: 20px; border-radius: 16px; border: 2px solid var(--border-color); margin-bottom: 15px; }
+        .interactive-label { display: block; margin: 10px 0; background: white; padding: 12px; border-radius: 10px; border: 2px solid #ccc; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .interactive-label:hover { border-color: #ff6b6b; }
+        .interactive-input { width: 100%; padding: 12px; border-radius: 10px; border: 2px solid #ccc; font-weight: bold; outline: none; }
+        .interactive-input:focus { border-color: #ff6b6b; }
+
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); border-color: #FFE4E1; } 100% { transform: scale(1); } }
+        
+        button { background-color: white; border: 3px solid var(--border-color); border-radius: 16px; padding: 12px 24px; font-weight: 900; font-size: 1.1rem; cursor: pointer; box-shadow: 3px 3px 0px var(--border-color); transition: all 0.1s ease; }
+        button:active { transform: translate(3px, 3px); box-shadow: 0px 0px 0px var(--border-color); }
+        #reward-box { font-size: 4rem; display: none; animation: bounce 1s; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-20px); } }
+    </style>
+</head>
+<body>
+    <div id="screen-start" class="screen active">
+        <h1 id="ui-title" style="font-size: 2.5rem; margin-bottom: 10px;"></h1>
+        <p id="ui-inst" style="font-size: 1.2rem;"></p>
+        <button id="btn-start" style="background-color: #D0F0C0; margin-top: 20px;"></button>
+    </div>
+
+    <div id="screen-map" class="screen">
+        <h2>🗺️ Select a Target</h2>
+        <div id="game-board"></div>
+    </div>
+
+    <div id="screen-scan" class="screen">
+        <h2>📷 AR Scanner</h2>
+        <p id="scan-hint"></p>
+        <div id="scanner-ui">
+            <video id="camera-stream" autoplay playsinline muted></video>
+            <div class="scan-target"></div>
+            <div class="scan-overlay">
+                <span id="scan-status" style="font-size: 1.5rem; color: white; text-align: center;">Awaiting scan...</span>
+            </div>
+        </div>
+        <button id="btn-do-scan" style="background-color: #FFE4E1; margin-top: 15px;"></button>
+    </div>
+
+    <div id="screen-task" class="screen">
+        <h2 id="task-counter">📝 Task 1</h2>
+        <h3 id="task-question" style="margin-bottom: 15px; font-size:1.5rem;"></h3>
+        <div id="task-interactive-area" class="task-interactive-area"></div>
+        <button id="btn-check" style="background-color: #D4F0F0; margin-top: 20px;"></button>
+        <div id="reward-box"></div>
+    </div>
+
+    <div id="screen-qr" class="screen">
+        <h2 style="margin-bottom: 15px;">🎉 Point Unlocked!</h2>
+        <img id="unlocked-qr" src="" style="display:none; max-width: 250px; border-radius: 16px; margin: 0 auto 20px auto; border: 4px solid var(--border-color);">
+        <p style="font-weight: bold; margin-bottom: 20px;">You have successfully completed this point.</p>
+        <button id="btn-qr-continue" style="background-color: #D0F0C0;">Continue to Map</button>
+    </div>
+
+    <div id="screen-end" class="screen">
+        <h1 id="end-title" style="font-size: 2.5rem; margin-bottom: 10px;"></h1>
+        <h2 id="end-slogan" style="color: #ff6b6b;"></h2>
+        <p id="end-time" style="font-size: 1.2rem; margin-top: 15px; font-weight: bold;"></p>
+        <button id="btn-restart" style="margin-top: 20px;"></button>
+    </div>
+
+    <` + scrTag + `>
+        const questData = ` + questJSON + `;
+        const dict = ` + dictJSON + `;
+        
+        let startTime, currentElement = null;
+        let currentTaskIndex = 0;
+        let mobilenetModel = null;
+
+        if (window.mobilenet) {
+            mobilenet.load().then(model => { mobilenetModel = model; console.log("MobileNet Loaded!"); });
+        }
+
+        const g = questData.settings.global;
+        document.body.style.backgroundColor = g.bg;
+        document.body.style.fontFamily = g.font;
+        
+        document.getElementById('ui-title').innerText = g.title;
+        document.getElementById('ui-inst').innerText = g.inst;
+        document.getElementById('end-slogan').innerText = g.endSlogan;
+        
+        document.getElementById('btn-start').innerText = dict.player_btn_start;
+        document.getElementById('btn-do-scan').innerText = dict.player_btn_scan;
+        document.getElementById('btn-check').innerText = dict.player_btn_check;
+        document.getElementById('end-title').innerText = dict.player_end_title;
+        document.getElementById('btn-restart').innerText = dict.player_btn_restart;
+
+        function applyBackground(screenId, bgUrl) {
+            document.body.style.backgroundImage = bgUrl ? \`url(\${bgUrl})\` : '';
+        }
+
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            
+            if (id === 'screen-start') applyBackground(id, g.bgStart);
+            else if (id === 'screen-end') applyBackground(id, g.bgEnd);
+            else applyBackground(id, ''); 
+        }
+
+        document.getElementById('btn-start').addEventListener('click', () => {
+            startTime = Date.now();
+            renderMap();
+            showScreen('screen-map');
+        });
+
+        function renderMap() {
+            const board = document.getElementById('game-board');
+            board.innerHTML = '';
+            board.style.backgroundImage = g.bgMap ? \`url(\${g.bgMap})\` : 'radial-gradient(#D4F0F0 2px, transparent 2px)';
+            questData.elements.forEach(el => {
+                const div = document.createElement('div');
+                div.className = 'quest-element';
+                if(el.completed) div.classList.add('done');
+                div.style.left = el.x + 'px'; div.style.top = el.y + 'px';
+                div.innerHTML = el.type==='image' && el.content.startsWith('http') ? \`<img src="\${el.content}" width="40">\` : el.content;
+                div.onclick = () => { if(!el.completed) startScan(el); }
+                board.appendChild(div);
+            });
+        }
+
+        function startScan(el) {
+            currentElement = el;
+            showScreen('screen-scan');
+            document.getElementById('scan-hint').innerText = \`\${dict.player_scan_inst} \${el.targetKey || 'Secret Object'}\`;
+            document.getElementById('scan-status').innerText = mobilenetModel ? 'Awaiting scan...' : 'Loading ML Model...';
+            
+            if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(stream => {
+                    document.getElementById('camera-stream').srcObject = stream;
+                }).catch(err => console.log("Camera access denied"));
+            }
+        }
+
+        document.getElementById('btn-do-scan').addEventListener('click', async () => {
+            const expected = (currentElement.targetKey || '').toLowerCase().trim();
+            const video = document.getElementById('camera-stream');
+            const statusEl = document.getElementById('scan-status');
+
+            statusEl.innerText = dict.player_analyzing;
+
+            let matchFound = false;
+
+            if (expected === '') {
+                matchFound = true; 
+            } else if (video.videoWidth > 0) {
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+                if (window.jsQR) {
+                    const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+                    if (code && code.data.toLowerCase().includes(expected)) {
+                        matchFound = true;
+                    }
+                }
+
+                if (!matchFound && mobilenetModel) {
+                    try {
+                        const predictions = await mobilenetModel.classify(video);
+                        matchFound = predictions.some(p => p.className.toLowerCase().includes(expected));
+                    } catch (e) { console.error("ML Error:", e); }
+                }
+            }
+
+            if (matchFound) {
+                statusEl.innerText = dict.player_success;
+                setTimeout(() => {
+                    currentTaskIndex = 0;
+                    if(currentElement.tasks && currentElement.tasks.length > 0) {
+                        showTask();
+                    } else {
+                        checkElementCompletion();
+                    }
+                }, 1000);
+            } else {
+                statusEl.innerText = "❌ No match. Wrong object!";
+                setTimeout(() => { statusEl.innerText = "Awaiting scan..."; }, 2000);
+            }
+        });
+
+        function showTask() {
+            showScreen('screen-task');
+            
+            const stream = document.getElementById('camera-stream').srcObject;
+            if(stream) stream.getTracks().forEach(track => track.stop());
+
+            const task = currentElement.tasks[currentTaskIndex];
+            document.getElementById('task-counter').innerText = \`📝 Task \${currentTaskIndex + 1} of \${currentElement.tasks.length}\`;
+            
+            const qText = task.data['Question:'] || task.data['q-text'] || task.data['Capital of...'] || task.data['Question'] || 'Solve this task:';
+            document.getElementById('task-question').innerText = qText;
+            
+            const interactiveArea = document.getElementById('task-interactive-area');
+            interactiveArea.innerHTML = '';
+            
+            if (task.type === 'multiple_choice' || task.type === 'odd_one_out') {
+                for (let i = 1; i <= 4; i++) {
+                    const optKey = \`Option \${i}\`;
+                    const optVal = task.data[optKey] || (task.data[\`Word \${i}\`]);
+                    if (optVal) {
+                        interactiveArea.innerHTML += \`<label class="interactive-label"><input type="radio" name="ans" value="\${i}" style="transform: scale(1.2); margin-right: 10px;"> \${optVal}</label>\`;
+                    }
+                }
+            } else if (task.type === 'checkboxes') {
+                for (let i = 1; i <= 4; i++) {
+                    if (task.data[\`Option \${i}\`]) {
+                        interactiveArea.innerHTML += \`<label class="interactive-label"><input type="checkbox" name="ans_cb" value="\${i}" style="transform: scale(1.2); margin-right: 10px;"> \${task.data[\`Option \${i}\`]}</label>\`;
+                    }
+                }
+            } else {
+                interactiveArea.innerHTML = \`<input type="text" id="ans_text" class="interactive-input" placeholder="Type your answer...">\`;
+            }
+
+            document.getElementById('btn-check').style.display = 'block';
+            document.getElementById('reward-box').style.display = 'none';
+        }
+
+        document.getElementById('btn-check').addEventListener('click', () => {
+            const task = currentElement.tasks[currentTaskIndex];
+            let isCorrect = false;
+
+            if (task.type === 'multiple_choice' || task.type === 'odd_one_out') {
+                const correctKey = task.type === 'multiple_choice' ? 'mc_correct' : 'odd_correct';
+                const selected = document.querySelector('input[name="ans"]:checked');
+                if (selected && selected.value == task.data[correctKey]) isCorrect = true;
+            } else if (task.type === 'checkboxes') {
+                const selected = Array.from(document.querySelectorAll('input[name="ans_cb"]:checked')).map(el => el.value);
+                let correctArr = task.data['cb_correct'] || [];
+                if (!Array.isArray(correctArr)) correctArr = [correctArr];
+                if (selected.length === correctArr.length && selected.every(val => correctArr.includes(val))) isCorrect = true;
+            } else {
+                const ans = document.getElementById('ans_text').value.trim().toLowerCase();
+                const correct = (task.data['Answer'] || '').trim().toLowerCase();
+                if (ans === correct) isCorrect = true;
+            }
+
+            if (!isCorrect) {
+                alert('❌ Incorrect answer! Try again.');
+                return;
+            }
+
+            const rewardBox = document.getElementById('reward-box');
+            let reward = task.reward || '🌟';
+            
+            if(reward.startsWith('http')) rewardBox.innerHTML = \`<img src="\${reward}" style="max-width:150px; border-radius:16px;">\`;
+            else rewardBox.innerText = reward;
+            
+            rewardBox.style.display = 'block';
+            document.getElementById('btn-check').style.display = 'none';
+            
+            setTimeout(() => {
+                currentTaskIndex++;
+                if (currentTaskIndex < currentElement.tasks.length) {
+                    showTask();
+                } else {
+                    checkElementCompletion();
+                }
+            }, 2000);
+        });
+
+        function checkElementCompletion() {
+            currentElement.completed = true;
+            
+            if (currentElement.hiddenQR) {
+                showScreen('screen-qr');
+                const qrImg = document.getElementById('unlocked-qr');
+                qrImg.src = currentElement.hiddenQR;
+                qrImg.style.display = 'block';
+            } else {
+                finishPoint();
+            }
+        }
+        
+        document.getElementById('btn-qr-continue').addEventListener('click', finishPoint);
+
+        function finishPoint() {
+            const allDone = questData.elements.every(e => e.completed);
+            if (allDone) {
+                showScreen('screen-end'); calcTime();
+            } else {
+                renderMap(); showScreen('screen-map');
+            }
+        }
+
+        function calcTime() {
+            const diff = Math.floor((Date.now() - startTime) / 1000);
+            const m = Math.floor(diff / 60); const s = diff % 60;
+            document.getElementById('end-time').innerText = \`\${dict.player_time} \${m}m \${s}s\`;
+        }
+
+        document.getElementById('btn-restart').addEventListener('click', () => {
+            questData.elements.forEach(e => e.completed = false);
+            showScreen('screen-start');
+        });
+        
+        showScreen('screen-start');
+    </` + scrTag + `>
+</body>
+</html>`;
+            }
+
+            exportToHTML() {
+                const htmlTemplate = this.generatePlayerHTML();
+                const blob = new Blob([htmlTemplate], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'ar_quest_player.html';
+                document.body.appendChild(anchor); anchor.click(); anchor.remove(); URL.revokeObjectURL(url);
+            }
+
+            generateIframe() {
+                const iframeString = `<iframe src="YOUR_HOSTED_URL/ar_quest_player.html" width="100%" height="600" style="border: none; border-radius: 16px; box-shadow: 4px 4px 0px rgba(139, 123, 139, 0.2); overflow: hidden;" allow="camera; microphone; autoplay"></iframe>`;
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(iframeString).then(() => {
+                        alert('✅ iFrame code successfully copied!\n\nReplace "YOUR_HOSTED_URL" with your real link.');
+                    }).catch(err => { prompt('Copy this code manually:', iframeString); });
+                } else {
+                    prompt('Copy this code manually:', iframeString);
+                }
+            }
+        }
+
+        window.questEditor = new EditorApp();
+    </script>
+</body>
+</html>
